@@ -1,4 +1,4 @@
-# Azure Function `send-document-email`
+# Azure Function `poultryfarm-email-fn`
 
 Questa Azure Function HTTP riceve una richiesta JSON da `documento-service` e invia un'email al cliente contenente il **link al file salvato su Azure Blob Storage**.
 
