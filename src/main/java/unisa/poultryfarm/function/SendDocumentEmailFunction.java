@@ -1,5 +1,6 @@
 package unisa.poultryfarm.function;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.azure.functions.*;
 import com.microsoft.azure.functions.annotation.*;
 import com.sendgrid.*;
@@ -19,24 +20,28 @@ public class SendDocumentEmailFunction {
                     methods = {HttpMethod.POST},
                     authLevel = AuthorizationLevel.FUNCTION,
                     route = "send-document-email")
-            HttpRequestMessage<Optional<SendDocumentEmailRequest>> request,
+            HttpRequestMessage<Optional<String>> request,
             final ExecutionContext context) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.findAndRegisterModules();
+            String rawBody = request.getBody().orElse(null);
 
-        SendDocumentEmailRequest body = request.getBody().orElse(null);
+            if (rawBody == null || rawBody.isBlank()) {
+                return request.createResponseBuilder(HttpStatus.BAD_REQUEST)
+                        .body("Request body is required")
+                        .build();
+            }
 
-        if (body == null || body.getTo() == null || body.getBlobUrl() == null) {
-            return request.createResponseBuilder(HttpStatus.BAD_REQUEST)
-                    .body("Payload non valido: to e blobUrl sono obbligatori")
-                    .build();
-        }
+            SendDocumentEmailRequest body = objectMapper.readValue(rawBody, SendDocumentEmailRequest.class);
 
-        String to = body.getTo();
-        String subject = body.getSubject() != null
-                ? body.getSubject()
-                : "Documento ordine";
-        String blobUrl = body.getBlobUrl();
+            String to = body.getTo();
+            String subject = body.getSubject() != null
+                    ? body.getSubject()
+                    : "Documento ordine";
+            String blobUrl = body.getBlobUrl();
 
-        String textBody = """
+            String textBody = """
                 Buongiorno,
 
                 in allegato il link per scaricare il documento relativo al suo ordine.
@@ -49,12 +54,18 @@ public class SendDocumentEmailFunction {
                 PoultryFarm
                 """.formatted(blobUrl);
 
-        try {
             sendEmailWithSendGrid(context, to, subject, textBody);
-        } catch (IOException e) {
+        }
+        catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             context.getLogger().severe("Errore nell'invio email: " + e.getMessage());
             return request.createResponseBuilder(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Errore nell'invio email")
+                    .build();
+        }
+        catch (Exception e) {
+            context.getLogger().severe("Errore nel pargin" + e.getMessage());
+            return request.createResponseBuilder(HttpStatus.BAD_REQUEST)
+                    .body("Payload non valido")
                     .build();
         }
 
